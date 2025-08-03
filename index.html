@@ -16,6 +16,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src='https://unpkg.com/tesseract.js@4.0.2/dist/tesseract.min.js'></script>
     
     <style>
         * {
@@ -709,6 +710,201 @@
             text-decoration: underline;
         }
 
+        /* パスワード変更モーダル */
+        .password-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1500;
+        }
+        
+        .password-modal.show {
+            display: flex;
+        }
+        
+        .password-modal-content {
+            background: white;
+            border-radius: 15px;
+            max-width: 500px;
+            width: 90%;
+            padding: 30px;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+        }
+        
+        .password-form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .password-form input {
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+        
+        .password-form input:focus {
+            outline: none;
+            border-color: #8b5cf6;
+        }
+        
+        .password-error {
+            color: #dc2626;
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
+        
+        .password-success {
+            color: #10b981;
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
+
+        /* OCR関連のスタイル */
+        .ocr-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1500;
+            overflow-y: auto;
+        }
+        
+        .ocr-modal.show {
+            display: flex;
+        }
+        
+        .ocr-modal-content {
+            background: white;
+            border-radius: 15px;
+            max-width: 800px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+        }
+        
+        .ocr-options {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        
+        .ocr-preview {
+            max-width: 100%;
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        .ocr-preview img {
+            max-width: 100%;
+            max-height: 400px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+        }
+        
+        .ocr-results {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .ocr-confirm-table {
+            width: 100%;
+            margin: 15px 0;
+        }
+        
+        .ocr-confirm-table td {
+            padding: 10px;
+            vertical-align: middle;
+        }
+        
+        .ocr-confirm-table input {
+            width: 80px;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            text-align: center;
+        }
+        
+        .ocr-loading {
+            text-align: center;
+            padding: 40px;
+        }
+        
+        .ocr-loading-spinner {
+            display: inline-block;
+            width: 50px;
+            height: 50px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #8b5cf6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .ocr-template {
+            background: white;
+            padding: 30px;
+            font-family: 'メイリオ', 'Meiryo', sans-serif;
+            font-size: 16pt;
+            line-height: 2.5;
+            color: black;
+        }
+        
+        .ocr-template h2 {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 24pt;
+        }
+        
+        .ocr-template .ocr-item {
+            margin: 15px 0;
+            font-size: 18pt;
+        }
+        
+        .ocr-template .checkbox {
+            display: inline-block;
+            width: 25px;
+            height: 25px;
+            border: 3px solid black;
+            margin-right: 15px;
+            vertical-align: middle;
+        }
+        
+        .ocr-staff-select {
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        .ocr-staff-select select {
+            padding: 10px 20px;
+            font-size: 1.1rem;
+            border: 2px solid #8b5cf6;
+            border-radius: 8px;
+            background: white;
+        }
+
         /* モバイル対応 */
         @media (max-width: 768px) {
             body {
@@ -1226,7 +1422,10 @@
             <div id="transactions" class="tab-content">
                 <div class="flex justify-between" style="margin-bottom: 20px;">
                     <h2>取引記録（リアルタイム同期）</h2>
-                    <button class="btn btn-primary" onclick="showAddTransactionForm()">➕ 取引追加</button>
+                    <div class="flex gap-10">
+                        <button class="btn btn-secondary" onclick="showOCRModal()">📸 紙の記録を読み取り</button>
+                        <button class="btn btn-primary" onclick="showAddTransactionForm()">➕ 取引追加</button>
+                    </div>
                 </div>
 
                 <!-- 取引追加フォーム -->
@@ -1341,6 +1540,22 @@
             <div id="settings" class="tab-content">
                 <h2 style="margin-bottom: 20px;">ユーザー設定（クラウド版）</h2>
 
+                <!-- アカウント設定セクション -->
+                <div class="settings-section">
+                    <h3>👤 アカウント設定</h3>
+                    <div style="margin-top: 20px;">
+                        <div style="margin-bottom: 15px;">
+                            <strong>ユーザー名:</strong> <span id="settingsUsername">admin</span>
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <strong>表示名:</strong> <span id="settingsDisplayName">管理者</span>
+                        </div>
+                        <div style="margin-top: 20px;">
+                            <button class="btn btn-primary" onclick="showPasswordModal()">🔐 パスワード変更</button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- クラウド設定 -->
                 <div class="settings-section">
                     <h3>☁️ クラウド設定</h3>
@@ -1388,6 +1603,38 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- パスワード変更モーダル -->
+    <div id="passwordModal" class="password-modal">
+        <div class="password-modal-content">
+            <div class="modal-header">
+                <h2>🔐 パスワード変更</h2>
+                <button onclick="closePasswordModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">✕</button>
+            </div>
+            <div class="modal-body">
+                <form class="password-form" onsubmit="return changePassword(event)">
+                    <div>
+                        <label style="display: block; margin-bottom: 5px; font-weight: 600;">現在のパスワード</label>
+                        <input type="password" id="currentPassword" required placeholder="現在のパスワードを入力">
+                    </div>
+                    <div>
+                        <label style="display: block; margin-bottom: 5px; font-weight: 600;">新しいパスワード</label>
+                        <input type="password" id="newPassword" required placeholder="新しいパスワードを入力" minlength="6">
+                    </div>
+                    <div>
+                        <label style="display: block; margin-bottom: 5px; font-weight: 600;">新しいパスワード（確認）</label>
+                        <input type="password" id="confirmPassword" required placeholder="新しいパスワードを再入力">
+                    </div>
+                    <div id="passwordError" class="password-error" style="display: none;"></div>
+                    <div id="passwordSuccess" class="password-success" style="display: none;"></div>
+                    <div class="flex gap-10" style="margin-top: 20px;">
+                        <button type="submit" class="btn btn-primary">変更</button>
+                        <button type="button" class="btn" onclick="closePasswordModal()" style="background: #6c757d; color: white;">キャンセル</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -1480,6 +1727,109 @@
         </div>
     </div>
 
+    <!-- OCRモーダル -->
+    <div id="ocrModal" class="ocr-modal">
+        <div class="ocr-modal-content">
+            <div class="modal-header">
+                <h2>📸 使用記録の読み取り</h2>
+                <button onclick="closeOCRModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="ocr-options">
+                    <button onclick="selectImageFile()" class="btn btn-primary">
+                        📁 画像ファイルを選択
+                    </button>
+                    <button onclick="printOCRTemplate()" class="btn btn-secondary">
+                        🖨️ 記録用紙を印刷
+                    </button>
+                </div>
+                
+                <input type="file" id="ocrFileInput" accept="image/*" style="display: none;" onchange="handleOCRFile(event)">
+                
+                <div id="ocrPreview" class="ocr-preview" style="display: none;"></div>
+                
+                <div id="ocrLoading" class="ocr-loading" style="display: none;">
+                    <div class="ocr-loading-spinner"></div>
+                    <p style="margin-top: 20px;">画像を解析中...</p>
+                </div>
+                
+                <div id="ocrResults" class="ocr-results" style="display: none;">
+                    <h3>認識結果の確認</h3>
+                    <div class="ocr-staff-select">
+                        <label>担当スタッフ: </label>
+                        <select id="ocrStaffSelect">
+                            <option value="">選択してください</option>
+                        </select>
+                    </div>
+                    <table class="ocr-confirm-table" id="ocrConfirmTable">
+                        <thead>
+                            <tr>
+                                <th>商品名</th>
+                                <th>数量</th>
+                                <th>単位</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ocrTableBody">
+                        </tbody>
+                    </table>
+                    <div style="text-align: center; margin-top: 20px;">
+                        <button class="btn" onclick="addOCRRow()" style="background: #6c757d; color: white; margin-right: 10px;">
+                            ➕ 商品追加
+                        </button>
+                        <button class="btn btn-primary" onclick="confirmOCRRecords()">
+                            ✅ 確定して記録
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- OCR印刷用テンプレート -->
+    <div id="ocrPrintTemplate" style="display: none;">
+        <div class="ocr-template">
+            <h2>在庫使用記録シート</h2>
+            <p>日付: ________________</p>
+            <p>担当: ________________</p>
+            <hr style="margin: 20px 0;">
+            
+            <div class="ocr-items">
+                <div class="ocr-item">
+                    <span class="checkbox">□</span>
+                    カラー剤6番 _______ 本
+                </div>
+                <div class="ocr-item">
+                    <span class="checkbox">□</span>
+                    カラー剤8番 _______ 本
+                </div>
+                <div class="ocr-item">
+                    <span class="checkbox">□</span>
+                    ミルボン シャンプー _______ 本
+                </div>
+                <div class="ocr-item">
+                    <span class="checkbox">□</span>
+                    トリートメント _______ 本
+                </div>
+                <div class="ocr-item">
+                    <span class="checkbox">□</span>
+                    ウエラ パーマ液 _______ 本
+                </div>
+                <div class="ocr-item">
+                    <span class="checkbox">□</span>
+                    N. オイル _______ 本
+                </div>
+                <div class="ocr-item">
+                    <span class="checkbox">□</span>
+                    その他: _____________ _______ 本
+                </div>
+            </div>
+            
+            <hr style="margin: 20px 0;">
+            <p>備考: _________________________________</p>
+        </div>
+    </div>
+
     <!-- 同期ステータス -->
     <div id="syncStatus" class="sync-status">
         <span id="syncMessage">同期中...</span>
@@ -1521,6 +1871,7 @@
         let csvData = [];
         let validationErrors = [];
         let pendingDeleteAction = null;
+        let ocrRecords = []; // OCR認識結果の一時保存
 
         // Firebase 設定
         function setupFirebase() {
@@ -1576,11 +1927,15 @@
             const username = document.getElementById('loginUsername').value.trim();
             const password = document.getElementById('loginPassword').value.trim();
             
-            if (username === 'admin' && password === 'password') {
+            if (users[username] && users[username].password === password) {
                 currentUser = username;
                 document.getElementById('currentUserName').textContent = `👤 ${users[username].displayName}`;
                 document.getElementById('loginContainer').style.display = 'none';
                 document.getElementById('mainApp').style.display = 'block';
+                
+                // 設定タブのユーザー情報を更新
+                document.getElementById('settingsUsername').textContent = username;
+                document.getElementById('settingsDisplayName').textContent = users[username].displayName;
                 
                 initializeApp();
                 
@@ -1603,8 +1958,84 @@
             document.getElementById('loginContainer').style.display = 'flex';
         }
 
+        // パスワード変更モーダル表示
+        function showPasswordModal() {
+            document.getElementById('passwordModal').classList.add('show');
+            // フォームをリセット
+            document.getElementById('currentPassword').value = '';
+            document.getElementById('newPassword').value = '';
+            document.getElementById('confirmPassword').value = '';
+            document.getElementById('passwordError').style.display = 'none';
+            document.getElementById('passwordSuccess').style.display = 'none';
+        }
+
+        // パスワード変更モーダルを閉じる
+        function closePasswordModal() {
+            document.getElementById('passwordModal').classList.remove('show');
+        }
+
+        // パスワード変更処理
+        function changePassword(event) {
+            event.preventDefault();
+            
+            const currentPassword = document.getElementById('currentPassword').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            const errorEl = document.getElementById('passwordError');
+            const successEl = document.getElementById('passwordSuccess');
+            
+            // エラーメッセージをリセット
+            errorEl.style.display = 'none';
+            successEl.style.display = 'none';
+            
+            // 現在のパスワードチェック
+            if (users[currentUser].password !== currentPassword) {
+                errorEl.textContent = '現在のパスワードが正しくありません。';
+                errorEl.style.display = 'block';
+                return false;
+            }
+            
+            // 新しいパスワードの確認
+            if (newPassword !== confirmPassword) {
+                errorEl.textContent = '新しいパスワードが一致しません。';
+                errorEl.style.display = 'block';
+                return false;
+            }
+            
+            // パスワードの長さチェック
+            if (newPassword.length < 6) {
+                errorEl.textContent = 'パスワードは6文字以上で設定してください。';
+                errorEl.style.display = 'block';
+                return false;
+            }
+            
+            // パスワード変更処理
+            users[currentUser].password = newPassword;
+            
+            // ローカルストレージに保存
+            localStorage.setItem('beautyInventoryUsers', JSON.stringify(users));
+            
+            // 成功メッセージ表示
+            successEl.textContent = 'パスワードが正常に変更されました。';
+            successEl.style.display = 'block';
+            
+            // 1.5秒後にモーダルを閉じる
+            setTimeout(() => {
+                closePasswordModal();
+                showSyncMessage('🔐 パスワードを変更しました');
+            }, 1500);
+            
+            return false;
+        }
+
         // アプリ初期化
         function initializeApp() {
+            // 保存されたユーザー情報を読み込む
+            const savedUsers = localStorage.getItem('beautyInventoryUsers');
+            if (savedUsers) {
+                users = JSON.parse(savedUsers);
+            }
+            
             renderProductsTable();
             renderStaffTable();
             renderTransactionsTable();
@@ -1692,6 +2123,7 @@
                 };
                 
                 localStorage.setItem('beautyInventoryData', JSON.stringify(dataToSave));
+                localStorage.setItem('beautyInventoryUsers', JSON.stringify(users));
                 
                 showSyncMessage('💾 ローカル保存完了！');
                 updateDataStats();
@@ -3103,6 +3535,322 @@
             
             updateSyncStats();
         };
+
+        // OCR関連の関数
+        function showOCRModal() {
+            const modal = document.getElementById('ocrModal');
+            if (modal) {
+                modal.classList.add('show');
+                // スタッフ選択を更新
+                updateOCRStaffSelect();
+            }
+        }
+
+        function closeOCRModal() {
+            const modal = document.getElementById('ocrModal');
+            if (modal) {
+                modal.classList.remove('show');
+                // リセット
+                document.getElementById('ocrPreview').style.display = 'none';
+                document.getElementById('ocrResults').style.display = 'none';
+                document.getElementById('ocrLoading').style.display = 'none';
+                ocrRecords = [];
+            }
+        }
+
+        function selectImageFile() {
+            document.getElementById('ocrFileInput').click();
+        }
+
+        function handleOCRFile(event) {
+            const file = event.target.files[0];
+            if (file && file.type.startsWith('image/')) {
+                // プレビュー表示
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const preview = document.getElementById('ocrPreview');
+                    preview.innerHTML = `<img src="${e.target.result}" alt="プレビュー">`;
+                    preview.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+                
+                // OCR処理開始
+                processOCR(file);
+            }
+        }
+
+        async function processOCR(imageFile) {
+            // ローディング表示
+            document.getElementById('ocrLoading').style.display = 'block';
+            document.getElementById('ocrResults').style.display = 'none';
+            
+            try {
+                // Tesseract.jsでOCR実行
+                const result = await Tesseract.recognize(
+                    imageFile,
+                    'jpn',  // 日本語
+                    {
+                        logger: m => {
+                            console.log(m);
+                            // 進捗表示も可能
+                            if (m.status === 'recognizing text') {
+                                const percent = Math.round(m.progress * 100);
+                                const loading = document.querySelector('#ocrLoading p');
+                                if (loading) {
+                                    loading.textContent = `画像を解析中... ${percent}%`;
+                                }
+                            }
+                        }
+                    }
+                );
+                
+                console.log('OCR結果:', result.data.text);
+                
+                // テキストを解析
+                const records = parseOCRText(result.data.text);
+                
+                // 結果表示
+                showOCRResults(records);
+                
+            } catch (error) {
+                alert('読み取りエラー: ' + error.message);
+                console.error('OCR Error:', error);
+            } finally {
+                document.getElementById('ocrLoading').style.display = 'none';
+            }
+        }
+
+        function parseOCRText(text) {
+            const records = [];
+            const lines = text.split('\n');
+            
+            // 各商品のパターンを定義
+            const productPatterns = [
+                { pattern: /カラー剤.*?6番.*?(\d+)/, name: 'ロレアル カラー剤 6番' },
+                { pattern: /カラー剤.*?8番.*?(\d+)/, name: 'ロレアル カラー剤 8番' },
+                { pattern: /ミルボン.*?シャンプー.*?(\d+)/, name: 'ミルボン シャンプー' },
+                { pattern: /トリートメント.*?(\d+)/, name: 'トリートメント' },
+                { pattern: /ウエラ.*?パーマ液.*?(\d+)/, name: 'ウエラ パーマ液' },
+                { pattern: /N\.?\s*オイル.*?(\d+)/, name: 'N. オイル' }
+            ];
+            
+            // 各行をチェック
+            lines.forEach(line => {
+                productPatterns.forEach(({ pattern, name }) => {
+                    const match = line.match(pattern);
+                    if (match && match[1]) {
+                        const quantity = parseInt(match[1]);
+                        if (quantity > 0) {
+                            // 実際の商品IDを探す
+                            const product = products.find(p => p.name === name);
+                            if (product) {
+                                records.push({
+                                    productId: product.id,
+                                    productName: product.name,
+                                    quantity: quantity,
+                                    recognized: true
+                                });
+                            }
+                        }
+                    }
+                });
+            });
+            
+            return records;
+        }
+
+        function showOCRResults(records) {
+            ocrRecords = records;
+            
+            // スタッフ選択を更新
+            updateOCRStaffSelect();
+            
+            // テーブルに結果を表示
+            const tbody = document.getElementById('ocrTableBody');
+            tbody.innerHTML = '';
+            
+            records.forEach((record, index) => {
+                addOCRTableRow(record, index);
+            });
+            
+            // 認識されなかった場合は空行を追加
+            if (records.length === 0) {
+                addOCRRow();
+            }
+            
+            document.getElementById('ocrResults').style.display = 'block';
+        }
+
+        function addOCRTableRow(record, index) {
+            const tbody = document.getElementById('ocrTableBody');
+            const row = tbody.insertRow();
+            
+            row.innerHTML = `
+                <td>
+                    <select id="ocr-product-${index}" class="form-control" style="width: 200px;">
+                        <option value="">商品を選択</option>
+                        ${products.map(p => `
+                            <option value="${p.id}" ${record && record.productId === p.id ? 'selected' : ''}>
+                                ${p.name}
+                            </option>
+                        `).join('')}
+                    </select>
+                </td>
+                <td>
+                    <input type="number" id="ocr-qty-${index}" class="form-control" 
+                           value="${record ? record.quantity : 1}" min="1" style="width: 80px;">
+                </td>
+                <td>本</td>
+                <td>
+                    <button class="btn" onclick="removeOCRRow(${index})" 
+                            style="background: #dc2626; color: white; padding: 4px 8px; font-size: 0.8rem;">
+                        削除
+                    </button>
+                </td>
+            `;
+        }
+
+        function addOCRRow() {
+            const newIndex = document.querySelectorAll('#ocrTableBody tr').length;
+            addOCRTableRow(null, newIndex);
+        }
+
+        function removeOCRRow(index) {
+            const tbody = document.getElementById('ocrTableBody');
+            tbody.deleteRow(index);
+            
+            // インデックスを再調整
+            const rows = tbody.querySelectorAll('tr');
+            rows.forEach((row, newIndex) => {
+                // ID属性を更新
+                const select = row.querySelector('select');
+                const input = row.querySelector('input[type="number"]');
+                const button = row.querySelector('button');
+                
+                if (select) select.id = `ocr-product-${newIndex}`;
+                if (input) input.id = `ocr-qty-${newIndex}`;
+                if (button) button.setAttribute('onclick', `removeOCRRow(${newIndex})`);
+            });
+        }
+
+        function updateOCRStaffSelect() {
+            const select = document.getElementById('ocrStaffSelect');
+            if (!select) return;
+            
+            select.innerHTML = '<option value="">選択してください</option>';
+            staff.forEach(member => {
+                const option = document.createElement('option');
+                option.value = member.name;
+                option.textContent = member.name;
+                select.appendChild(option);
+            });
+        }
+
+        function confirmOCRRecords() {
+            const staffName = document.getElementById('ocrStaffSelect').value;
+            if (!staffName) {
+                alert('担当スタッフを選択してください。');
+                return;
+            }
+            
+            const records = [];
+            const rows = document.querySelectorAll('#ocrTableBody tr');
+            
+            rows.forEach((row, index) => {
+                const productId = document.getElementById(`ocr-product-${index}`).value;
+                const quantity = parseInt(document.getElementById(`ocr-qty-${index}`).value);
+                
+                if (productId && quantity > 0) {
+                    records.push({
+                        productId: parseInt(productId),
+                        quantity: quantity
+                    });
+                }
+            });
+            
+            if (records.length === 0) {
+                alert('記録する商品がありません。');
+                return;
+            }
+            
+            // 確認
+            const confirmMessage = records.map(r => {
+                const product = products.find(p => p.id === r.productId);
+                return `${product.name}: ${r.quantity}本`;
+            }).join('\n');
+            
+            if (confirm(`以下の内容で記録しますか？\n\n担当: ${staffName}\n\n${confirmMessage}`)) {
+                // 取引記録として追加
+                const now = new Date();
+                const date = now.toISOString().split('T')[0];
+                const time = now.toTimeString().slice(0, 5);
+                
+                records.forEach(record => {
+                    const newTransaction = {
+                        id: Date.now() + Math.random(), // ユニークID
+                        productId: record.productId,
+                        type: 'use',
+                        quantity: record.quantity,
+                        date: date,
+                        time: time,
+                        staffName: staffName,
+                        memo: 'OCR読み取り'
+                    };
+                    
+                    transactions.unshift(newTransaction);
+                    
+                    // 在庫を更新
+                    const product = products.find(p => p.id === record.productId);
+                    if (product) {
+                        product.currentStock = Math.max(0, product.currentStock - record.quantity);
+                    }
+                });
+                
+                // UI更新
+                renderTransactionsTable();
+                renderProductsTable();
+                updateDashboardStats();
+                updateMonthlyReport();
+                
+                // 自動保存
+                if (isCloudMode) {
+                    saveToCloud();
+                } else {
+                    saveAllData();
+                }
+                
+                alert('記録を保存しました！');
+                closeOCRModal();
+            }
+        }
+
+        function printOCRTemplate() {
+            const printWindow = window.open('', '_blank');
+            const template = document.getElementById('ocrPrintTemplate').innerHTML;
+            
+            printWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>在庫使用記録シート</title>
+                    <style>
+                        @page { margin: 20mm; }
+                        body { margin: 0; }
+                        ${document.querySelector('style').textContent}
+                    </style>
+                </head>
+                <body>
+                    ${template}
+                </body>
+                </html>
+            `);
+            
+            printWindow.document.close();
+            printWindow.onload = function() {
+                printWindow.print();
+                printWindow.close();
+            };
+        }
     </script>
 </body>
 </html>
