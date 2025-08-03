@@ -2015,6 +2015,11 @@
             // ローカルストレージに保存
             localStorage.setItem('beautyInventoryUsers', JSON.stringify(users));
             
+            // クラウドにも保存
+            if (isCloudMode) {
+                saveToCloud();
+            }
+            
             // 成功メッセージ表示
             successEl.textContent = 'パスワードが正常に変更されました。';
             successEl.style.display = 'block';
@@ -2082,6 +2087,10 @@
                     const docRef = db.collection('transactions').doc(transaction.id.toString());
                     batch.set(docRef, transaction);
                 });
+                
+                // ユーザー情報も保存
+                const usersRef = db.collection('settings').doc('users');
+                batch.set(usersRef, { users: users });
                 
                 // バッチ実行
                 await batch.commit();
@@ -2173,6 +2182,15 @@
                     transactionsSnapshot.forEach(doc => {
                         transactions.push(doc.data());
                     });
+                }
+                
+                // ユーザー情報読み込み
+                const usersDoc = await db.collection('settings').doc('users').get();
+                if (usersDoc.exists) {
+                    const data = usersDoc.data();
+                    if (data.users) {
+                        users = data.users;
+                    }
                 }
                 
                 // UI更新
@@ -3102,16 +3120,18 @@
             let csvContent = '';
             
             if (currentCsvType === 'products') {
-                csvContent = 'name,currentStock,optimalStock,unitPrice,supplier\n';
-                csvContent += 'サンプル商品,10,20,1200,サンプル仕入先\n';
-                csvContent += 'ロレアル カラー剤 7番,5,15,1300,ロレアル\n';
+                csvContent = 'name,category,currentStock,optimalStock,unitPrice,supplier\n';
+                csvContent += 'サンプル商品,カラー剤,10,20,1200,サンプル仕入先\n';
+                csvContent += 'ロレアル カラー剤 7番,カラー剤,5,15,1300,ロレアル\n';
             } else {
-                csvContent = 'name\n';
-                csvContent += 'サンプル太郎\n';
-                csvContent += '鈴木花子\n';
+                csvContent = 'name,role,staffCode,joinDate\n';
+                csvContent += 'サンプル太郎,スタッフ,ST1001,2025-01-01\n';
+                csvContent += '鈴木花子,スタイリスト,ST1002,2024-06-15\n';
             }
 
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            // BOM付きで文字化け対策
+            const bom = '\uFEFF';
+            const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
             const url = URL.createObjectURL(blob);
             link.setAttribute('href', url);
@@ -3331,12 +3351,13 @@
 
             let message = '';
             if (currentCsvType === 'products') {
+                const maxId = products.length > 0 ? Math.max(...products.map(p => p.id)) : 0;
+                
                 csvData.forEach((row, index) => {
-                    const maxId = products.length > 0 ? Math.max(...products.map(p => p.id)) : 0;
                     const newProduct = {
                         id: maxId + index + 1,
                         name: row.name,
-                        category: 'その他',
+                        category: row.category || 'その他',
                         currentStock: parseInt(row.currentStock) || 0,
                         optimalStock: parseInt(row.optimalStock) || 0,
                         unitPrice: parseInt(row.unitPrice) || 0,
@@ -3344,23 +3365,32 @@
                     };
                     products.push(newProduct);
                 });
+                
+                // IDで並び替え
+                products.sort((a, b) => a.id - b.id);
+                
                 renderProductsTable();
                 updateProductSelect();
                 updateDashboardStats();
                 updateMonthlyReport();
                 message = `${csvData.length}件の商品を登録しました。`;
             } else {
+                const maxId = staff.length > 0 ? Math.max(...staff.map(s => s.id)) : 0;
+                
                 csvData.forEach((row, index) => {
-                    const maxId = staff.length > 0 ? Math.max(...staff.map(s => s.id)) : 0;
                     const newStaff = {
                         id: maxId + index + 1,
                         name: row.name,
-                        role: 'スタッフ',
-                        staffCode: `ST${(1000 + staff.length + index + 1).toString()}`,
-                        joinDate: new Date().toISOString().split('T')[0]
+                        role: row.role || 'スタッフ',
+                        staffCode: row.staffCode || `ST${(1000 + staff.length + index + 1).toString()}`,
+                        joinDate: row.joinDate || new Date().toISOString().split('T')[0]
                     };
                     staff.push(newStaff);
                 });
+                
+                // IDで並び替え
+                staff.sort((a, b) => a.id - b.id);
+                
                 renderStaffTable();
                 updateStaffSelect();
                 message = `${csvData.length}件のスタッフを登録しました。`;
