@@ -1211,11 +1211,6 @@
                 ユーザー名: admin<br>
                 パスワード: password<br>
                 <small>（データはクラウドに同期されます）</small>
-                <div style="margin-top: 15px;">
-                    <a href="#" onclick="showPasswordResetOptions()" style="color: #8b5cf6; text-decoration: none;">
-                        🔑 パスワードを忘れた方
-                    </a>
-                </div>
             </div>
         </div>
     </div>
@@ -1332,9 +1327,6 @@
                 <div class="flex justify-between" style="margin-bottom: 20px;">
                     <h2>商品マスタ管理（クラウド同期）</h2>
                     <div class="flex gap-10">
-                        <button class="btn" onclick="deleteAllProducts()" style="background: #dc2626; color: white;">
-                            🗑️ 全商品削除
-                        </button>
                         <button class="btn btn-secondary" onclick="showCsvModal('products')">
                             📤 CSV一括登録
                         </button>
@@ -1375,23 +1367,16 @@
                 <div class="table-container">
                     <div class="table-header">
                         <h3>商品一覧</h3>
-                        <select id="productSortOrder" onchange="changeProductSort()" class="form-control" style="width: 200px;">
-                            <option value="id">登録順</option>
-                            <option value="supplier">仕入先順</option>
-                            <option value="category">カテゴリ順</option>
-                            <option value="name">商品名順</option>
-                            <option value="stock">在庫数順</option>
-                        </select>
                     </div>
                     <table>
                         <thead>
                             <tr>
                                 <th>商品名</th>
-                                <th>仕入先</th>
                                 <th>カテゴリ</th>
                                 <th>現在庫</th>
                                 <th>適正在庫</th>
                                 <th>単価</th>
+                                <th>仕入先</th>
                                 <th>操作</th>
                             </tr>
                         </thead>
@@ -1675,13 +1660,6 @@
                     <button class="btn btn-secondary" onclick="downloadTemplate()">
                         📥 CSVテンプレートダウンロード
                     </button>
-                    <div style="margin-top: 10px; padding: 15px; background: #fef3c7; border-radius: 8px;">
-                        <strong>⚠️ CSV差し替えモード</strong><br>
-                        <label style="margin-top: 10px; display: flex; align-items: center; gap: 10px;">
-                            <input type="checkbox" id="csvReplaceMode" style="width: 20px; height: 20px;">
-                            <span>既存データを全て削除してCSVデータに置き換える</span>
-                        </label>
-                    </div>
                     <p style="margin-top: 10px; color: #6c757d; font-size: 0.9rem;" id="templateInfo">
                         商品マスタ必須項目: name(商品名), currentStock(現在庫), optimalStock(適正在庫), supplier(仕入れ先) ※unitPrice(単価)は空白可
                     </p>
@@ -2497,75 +2475,6 @@
             });
         }
 
-        // 商品の並び替え
-        function changeProductSort() {
-            const sortOrder = document.getElementById('productSortOrder').value;
-            
-            switch(sortOrder) {
-                case 'supplier':
-                    products.sort((a, b) => {
-                        // 仕入先でソート（同じ仕入先内ではID順）
-                        if (a.supplier === b.supplier) {
-                            return a.id - b.id;
-                        }
-                        return a.supplier.localeCompare(b.supplier, 'ja');
-                    });
-                    break;
-                case 'category':
-                    products.sort((a, b) => {
-                        if (a.category === b.category) {
-                            return a.id - b.id;
-                        }
-                        return a.category.localeCompare(b.category, 'ja');
-                    });
-                    break;
-                case 'name':
-                    products.sort((a, b) => a.name.localeCompare(b.name, 'ja'));
-                    break;
-                case 'stock':
-                    products.sort((a, b) => a.currentStock - b.currentStock);
-                    break;
-                case 'id':
-                default:
-                    products.sort((a, b) => a.id - b.id);
-                    break;
-            }
-            
-            renderProductsTable();
-        }
-
-        // 全商品削除
-        function deleteAllProducts() {
-            const confirmMessage = `⚠️ 警告: 全商品を削除しますか？\n\n現在の商品数: ${products.length}件\n\nこの操作は元に戻せません！`;
-            
-            if (confirm(confirmMessage)) {
-                if (confirm('本当に全ての商品を削除してもよろしいですか？\n\n最終確認です。')) {
-                    // 関連する取引記録も削除
-                    const productIds = products.map(p => p.id);
-                    transactions = transactions.filter(t => !productIds.includes(t.productId));
-                    
-                    // 商品を全削除
-                    products = [];
-                    
-                    // UI更新
-                    renderProductsTable();
-                    renderTransactionsTable();
-                    updateProductSelect();
-                    updateDashboardStats();
-                    updateMonthlyReport();
-                    
-                    // 自動保存
-                    if (isCloudMode) {
-                        saveToCloud();
-                    } else {
-                        saveAllData();
-                    }
-                    
-                    alert('全商品を削除しました。');
-                }
-            }
-        }
-
         // 商品管理関連の関数（元の機能をすべて含む）
         function showAddProductForm() {
             const form = document.getElementById('addProductForm');
@@ -2643,11 +2552,11 @@
                     // 編集モード
                     row.innerHTML = `
                         <td><input type="text" class="form-control edit-name" value="${product.name}" style="width: 100%;"></td>
-                        <td><input type="text" class="form-control edit-supplier" value="${product.supplier}" style="width: 100%;"></td>
                         <td>${product.category}</td>
                         <td><input type="number" class="form-control edit-current-stock" value="${product.currentStock}" style="width: 80px;"> 本</td>
                         <td><input type="number" class="form-control edit-optimal-stock" value="${product.optimalStock}" style="width: 80px;"> 本</td>
                         <td><input type="number" class="form-control edit-unit-price" value="${product.unitPrice}" style="width: 100px;" placeholder="0"></td>
+                        <td><input type="text" class="form-control edit-supplier" value="${product.supplier}" style="width: 100%;"></td>
                         <td>
                             <button class="btn" onclick="saveProductEdit(${product.id})" style="background: #10b981; color: white; padding: 6px 12px; font-size: 0.8rem; margin-right: 5px;">保存</button>
                             <button class="btn" onclick="cancelProductEdit()" style="background: #6c757d; color: white; padding: 6px 12px; font-size: 0.8rem;">取消</button>
@@ -2657,11 +2566,11 @@
                     // 表示モード
                     row.innerHTML = `
                         <td>${product.name}</td>
-                        <td><strong>${product.supplier}</strong></td>
                         <td>${product.category}</td>
                         <td>${product.currentStock} 本</td>
                         <td>${product.optimalStock} 本</td>
                         <td>¥${product.unitPrice.toLocaleString()}</td>
+                        <td>${product.supplier}</td>
                         <td>
                             <button class="btn" onclick="editProduct(${product.id})" style="background: #3b82f6; color: white; padding: 6px 12px; font-size: 0.8rem; margin-right: 5px;">編集</button>
                             <button class="btn" onclick="deleteProduct(${product.id})" style="background: #dc2626; color: white; padding: 6px 12px; font-size: 0.8rem;">削除</button>
@@ -3455,698 +3364,6 @@
             if (previewDiv) previewDiv.classList.add('hidden');
             if (csvFile) csvFile.value = '';
         }
-                    'スタッフ': 'background: #10b981; color: white;'
-                };
-
-                row.innerHTML = `
-                    <td>${member.staffCode}</td>
-                    <td>${member.name}</td>
-                    <td><span class="status-badge" style="${roleStyles[member.role]}">${member.role}</span></td>
-                    <td><span class="status-badge status-optimal">在籍</span></td>
-                    <td>${member.joinDate || new Date().toISOString().split('T')[0]}</td>
-                    <td>
-                        <button class="btn" onclick="deleteStaff(${member.id})" style="background: #dc2626; color: white; padding: 6px 12px; font-size: 0.8rem;">削除</button>
-                    </td>
-                `;
-            });
-        }
-
-        function deleteStaff(staffId) {
-            const member = staff.find(s => s.id === staffId);
-            if (!member) return;
-            
-            if (confirm(`「${member.name}」を削除しますか？`)) {
-                staff = staff.filter(s => s.id !== staffId);
-                renderStaffTable();
-                updateStaffSelect();
-                
-                // 自動保存
-                if (isCloudMode) {
-                    saveToCloud();
-                } else {
-                    saveAllData();
-                }
-                
-                alert('スタッフを削除しました。');
-            }
-        }
-
-        // 取引記録関連
-        function showAddTransactionForm() {
-            const form = document.getElementById('addTransactionForm');
-            if (form) form.classList.remove('hidden');
-        }
-
-        function hideAddTransactionForm() {
-            const form = document.getElementById('addTransactionForm');
-            if (form) form.classList.add('hidden');
-            clearTransactionForm();
-        }
-
-        function clearTransactionForm() {
-            const elements = ['transactionProduct', 'transactionQuantity', 'transactionStaff', 'transactionMemo'];
-            elements.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.value = '';
-            });
-            
-            const type = document.getElementById('transactionType');
-            if (type) type.value = 'order';
-        }
-
-        function addTransaction() {
-            const productIdValue = document.getElementById('transactionProduct').value;
-            const type = document.getElementById('transactionType').value;
-            const quantity = parseInt(document.getElementById('transactionQuantity').value);
-            const staffName = document.getElementById('transactionStaff').value;
-            const memo = document.getElementById('transactionMemo').value;
-
-            if (!productIdValue || !quantity || !staffName) {
-                alert('商品・数量・担当者は必須です。');
-                return;
-            }
-
-            const productId = parseInt(productIdValue);
-            const now = new Date();
-            const date = now.toISOString().split('T')[0];
-            const time = now.toTimeString().slice(0, 5);
-
-            const newTransaction = {
-                id: Date.now(),
-                productId: productId,
-                type: type,
-                quantity: quantity,
-                date: date,
-                time: time,
-                staffName: staffName,
-                memo: memo
-            };
-
-            transactions.unshift(newTransaction);
-
-            // 在庫数を更新
-            const selectedProduct = products.find(p => parseInt(p.id) === productId);
-            if (selectedProduct) {
-                if (type === 'receipt') {
-                    selectedProduct.currentStock += quantity;
-                } else if (type === 'use' || type === 'sale') {
-                    selectedProduct.currentStock = Math.max(0, selectedProduct.currentStock - quantity);
-                }
-                renderProductsTable();
-                updateDashboardStats();
-            }
-
-            hideAddTransactionForm();
-            renderTransactionsTable();
-            updateMonthlyReport();
-            
-            // 自動保存
-            if (isCloudMode) {
-                saveToCloud();
-            } else {
-                saveAllData();
-            }
-            
-            alert('取引を追加しました！');
-        }
-
-        function renderTransactionsTable() {
-            const tbody = document.getElementById('transactionsTableBody');
-            if (!tbody) return;
-            
-            tbody.innerHTML = '';
-
-            const typeStyles = {
-                order: 'background: #3b82f6; color: white;',
-                receipt: 'background: #10b981; color: white;',
-                use: 'background: #f59e0b; color: white;',
-                sale: 'background: #8b5cf6; color: white;'
-            };
-
-            const typeLabels = {
-                order: '発注',
-                receipt: '入荷',
-                use: '使用',
-                sale: '販売'
-            };
-
-            transactions.forEach(transaction => {
-                const row = tbody.insertRow();
-                row.setAttribute('data-transaction-id', transaction.id);
-
-                if (editingTransactionId === transaction.id) {
-                    // 編集モード（簡略版）
-                    row.innerHTML = `
-                        <td>${transaction.date}<br><small>${transaction.time}</small></td>
-                        <td>編集中...</td>
-                        <td>編集中...</td>
-                        <td>編集中...</td>
-                        <td>編集中...</td>
-                        <td>編集中...</td>
-                        <td>
-                            <button class="btn" onclick="cancelTransactionEdit()" style="background: #6c757d; color: white; padding: 4px 8px; font-size: 0.7rem;">取消</button>
-                        </td>
-                    `;
-                } else {
-                    // 表示モード
-                    const relatedProduct = products.find(p => parseInt(p.id) === parseInt(transaction.productId));
-                    const productName = relatedProduct ? relatedProduct.name : `削除された商品 (ID: ${transaction.productId})`;
-
-                    row.innerHTML = `
-                        <td>${transaction.date}<br><small>${transaction.time}</small></td>
-                        <td>${productName}</td>
-                        <td><span class="status-badge" style="${typeStyles[transaction.type]}">${typeLabels[transaction.type]}</span></td>
-                        <td>${transaction.quantity}</td>
-                        <td>${transaction.staffName}</td>
-                        <td>${transaction.memo}</td>
-                        <td>
-                            <button class="btn" onclick="editTransaction(${transaction.id})" style="background: #3b82f6; color: white; padding: 4px 8px; font-size: 0.7rem; margin-right: 3px;">修正</button>
-                            <button class="btn" onclick="deleteTransaction(${transaction.id})" style="background: #dc2626; color: white; padding: 4px 8px; font-size: 0.7rem;">削除</button>
-                        </td>
-                    `;
-                }
-            });
-        }
-
-        function editTransaction(transactionId) {
-            editingTransactionId = transactionId;
-            renderTransactionsTable();
-        }
-
-        function cancelTransactionEdit() {
-            editingTransactionId = null;
-            renderTransactionsTable();
-        }
-
-        function deleteTransaction(transactionId) {
-            const transaction = transactions.find(t => t.id === transactionId);
-            if (!transaction) return;
-
-            const relatedProduct = products.find(p => parseInt(p.id) === parseInt(transaction.productId));
-            const productName = relatedProduct ? relatedProduct.name : `削除された商品 (ID: ${transaction.productId})`;
-
-            if (confirm(`この取引記録を削除しますか？\n\n商品: ${productName}\n種別: ${getTypeLabel(transaction.type)}\n数量: ${transaction.quantity}\n\n※在庫数も自動調整されます`)) {
-                // 在庫を元に戻す
-                if (relatedProduct) {
-                    if (transaction.type === 'receipt') {
-                        relatedProduct.currentStock = Math.max(0, relatedProduct.currentStock - transaction.quantity);
-                    } else if (transaction.type === 'use' || transaction.type === 'sale') {
-                        relatedProduct.currentStock += transaction.quantity;
-                    }
-                }
-
-                transactions = transactions.filter(t => t.id !== transactionId);
-
-                renderTransactionsTable();
-                renderProductsTable();
-                updateDashboardStats();
-                updateMonthlyReport();
-                
-                // 自動保存
-                if (isCloudMode) {
-                    saveToCloud();
-                } else {
-                    saveAllData();
-                }
-
-                alert('取引記録を削除しました。');
-            }
-        }
-
-        function getTypeLabel(type) {
-            const typeLabels = {
-                order: '発注',
-                receipt: '入荷',
-                use: '使用',
-                sale: '販売'
-            };
-            return typeLabels[type] || type;
-        }
-
-        // 月次レポート関連
-        function calculateMonthlyReport() {
-            const currentMonth = new Date().toISOString().slice(0, 7);
-            
-            const monthlyTransactions = transactions.filter(t => 
-                t.type === 'order' && 
-                t.date.startsWith(currentMonth)
-            );
-
-            let totalAmount = 0;
-            const supplierTotals = {};
-            const supplierCounts = {};
-            const supplierQuantities = {};
-            const transactionDetails = [];
-
-            monthlyTransactions.forEach(transaction => {
-                const relatedProduct = products.find(p => parseInt(p.id) === parseInt(transaction.productId));
-                if (relatedProduct && relatedProduct.unitPrice > 0 && relatedProduct.supplier) {
-                    const amount = transaction.quantity * relatedProduct.unitPrice;
-                    totalAmount += amount;
-
-                    const supplier = relatedProduct.supplier;
-                    if (!supplierTotals[supplier]) {
-                        supplierTotals[supplier] = 0;
-                        supplierCounts[supplier] = 0;
-                        supplierQuantities[supplier] = 0;
-                    }
-                    supplierTotals[supplier] += amount;
-                    supplierCounts[supplier]++;
-                    supplierQuantities[supplier] += transaction.quantity;
-
-                    transactionDetails.push({
-                        date: transaction.date,
-                        time: transaction.time,
-                        productName: relatedProduct.name,
-                        type: transaction.type,
-                        quantity: transaction.quantity,
-                        unitPrice: relatedProduct.unitPrice,
-                        amount: amount,
-                        staffName: transaction.staffName,
-                        memo: transaction.memo
-                    });
-                }
-            });
-
-            return {
-                totalAmount,
-                supplierCount: Object.keys(supplierTotals).length,
-                transactionCount: monthlyTransactions.length,
-                supplierTotals,
-                supplierCounts,
-                supplierQuantities,
-                transactionDetails
-            };
-        }
-
-        function updateMonthlyReport() {
-            const report = calculateMonthlyReport();
-
-            const amountElement = document.getElementById('monthly-amount');
-            const supplierElement = document.getElementById('supplier-count');
-            const transactionElement = document.getElementById('transaction-count');
-            const lastUpdateElement = document.getElementById('last-update');
-
-            if (amountElement) amountElement.textContent = `¥${report.totalAmount.toLocaleString()}`;
-            if (supplierElement) supplierElement.textContent = report.supplierCount;
-            if (transactionElement) transactionElement.textContent = report.transactionCount;
-            if (lastUpdateElement) {
-                const now = new Date();
-                lastUpdateElement.textContent = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
-            }
-
-            const tbody = document.getElementById('supplier-report-tbody');
-            if (tbody) {
-                tbody.innerHTML = '';
-                
-                const sortedSuppliers = Object.entries(report.supplierTotals)
-                    .sort(([,a], [,b]) => b - a);
-
-                sortedSuppliers.forEach(([supplier, amount]) => {
-                    const percentage = report.totalAmount > 0 ? (amount / report.totalAmount * 100).toFixed(1) : 0;
-                    const count = report.supplierCounts[supplier];
-                    const quantity = report.supplierQuantities[supplier];
-                    const avgPrice = quantity > 0 ? Math.round(amount / quantity) : 0;
-                    
-                    const row = tbody.insertRow();
-                    row.innerHTML = `
-                        <td>
-                            <strong>${supplier}</strong><br>
-                            <small style="color: #6c757d;">${quantity}個発注</small>
-                        </td>
-                        <td>¥${amount.toLocaleString()}</td>
-                        <td>
-                            <div style="display: flex; align-items: center; gap: 10px;">
-                                <span>${percentage}%</span>
-                                <div style="width: 50px; height: 6px; background: #e9ecef; border-radius: 3px;">
-                                    <div style="width: ${percentage}%; height: 100%; background: #8b5cf6; border-radius: 3px;"></div>
-                                </div>
-                            </div>
-                        </td>
-                        <td>${count}回</td>
-                        <td>¥${avgPrice.toLocaleString()}</td>
-                    `;
-                });
-
-                if (sortedSuppliers.length === 0) {
-                    const row = tbody.insertRow();
-                    row.innerHTML = `
-                        <td colspan="5" style="text-align: center; color: #6c757d; font-style: italic; padding: 40px;">
-                            <div style="font-size: 3rem; margin-bottom: 15px;">📊</div>
-                            <div style="font-size: 1.1rem; margin-bottom: 5px;">当月の発注データがありません</div>
-                            <div style="font-size: 0.9rem;">発注取引を追加すると自動的に集計されます</div>
-                        </td>
-                    `;
-                }
-            }
-        }
-
-        function showTransactionDetails() {
-            const report = calculateMonthlyReport();
-            const modal = document.getElementById('transactionDetailModal');
-            const content = document.getElementById('transactionDetailContent');
-
-            if (!modal || !content) return;
-
-            content.innerHTML = '';
-
-            if (report.transactionDetails.length === 0) {
-                content.innerHTML = `
-                    <div style="text-align: center; padding: 40px; color: #6c757d;">
-                        <div style="font-size: 3rem; margin-bottom: 15px;">📊</div>
-                        <div>当月の発注データがありません</div>
-                    </div>
-                `;
-            } else {
-                const sortedTransactions = report.transactionDetails.sort((a, b) => {
-                    const dateTimeA = new Date(`${a.date} ${a.time}`);
-                    const dateTimeB = new Date(`${b.date} ${b.time}`);
-                    return dateTimeB - dateTimeA;
-                });
-
-                sortedTransactions.forEach(transaction => {
-                    const item = document.createElement('div');
-                    item.className = 'transaction-item';
-                    item.innerHTML = `
-                        <div>
-                            <strong>${transaction.productName}</strong>
-                            <div style="font-size: 0.8rem; color: #6c757d;">
-                                ${transaction.date} ${transaction.time} | 発注 | ${transaction.staffName}
-                            </div>
-                            ${transaction.memo ? `<div style="font-size: 0.8rem; color: #6c757d;">${transaction.memo}</div>` : ''}
-                        </div>
-                        <div style="text-align: right;">
-                            <div><strong>${transaction.quantity}個</strong></div>
-                            <div style="color: #8b5cf6;">¥${transaction.amount.toLocaleString()}</div>
-                        </div>
-                    `;
-                    content.appendChild(item);
-                });
-            }
-
-            modal.classList.add('show');
-        }
-
-        function closeTransactionDetailModal() {
-            const modal = document.getElementById('transactionDetailModal');
-            if (modal) modal.classList.remove('show');
-        }
-
-        // 選択肢更新
-        function updateProductSelect() {
-            const select = document.getElementById('transactionProduct');
-            if (!select) return;
-            
-            select.innerHTML = '<option value="">商品を選択</option>';
-            
-            products.forEach(product => {
-                const option = document.createElement('option');
-                option.value = product.id;
-                option.textContent = product.name;
-                select.appendChild(option);
-            });
-        }
-
-        function updateStaffSelect() {
-            const select = document.getElementById('transactionStaff');
-            if (!select) return;
-            
-            select.innerHTML = '<option value="">担当者を選択</option>';
-            
-            staff.forEach(member => {
-                const option = document.createElement('option');
-                option.value = member.name;
-                option.textContent = member.name;
-                select.appendChild(option);
-            });
-        }
-
-        // CSV関連機能
-        function showCsvModal(type) {
-            currentCsvType = type;
-            setCsvType(type);
-            const modal = document.getElementById('csvModal');
-            if (modal) modal.classList.add('show');
-        }
-
-        function closeCsvModal() {
-            const modal = document.getElementById('csvModal');
-            if (modal) modal.classList.remove('show');
-            clearCsvData();
-        }
-
-        function setCsvType(type) {
-            currentCsvType = type;
-            
-            const productBtn = document.getElementById('productTypeBtn');
-            const staffBtn = document.getElementById('staffTypeBtn');
-            const templateInfo = document.getElementById('templateInfo');
-            
-            if (type === 'products') {
-                if (productBtn) productBtn.className = 'btn btn-primary';
-                if (staffBtn) {
-                    staffBtn.className = 'btn';
-                    staffBtn.style.background = '#6c757d';
-                    staffBtn.style.color = 'white';
-                }
-                if (templateInfo) templateInfo.textContent = '商品マスタ必須項目: name(商品名), currentStock(現在庫), optimalStock(適正在庫), supplier(仕入れ先) ※unitPrice(単価)は空白可';
-            } else {
-                if (staffBtn) staffBtn.className = 'btn btn-primary';
-                if (productBtn) {
-                    productBtn.className = 'btn';
-                    productBtn.style.background = '#6c757d';
-                    productBtn.style.color = 'white';
-                }
-                if (templateInfo) templateInfo.textContent = 'スタッフマスタ必須項目: name(名前)';
-            }
-        }
-
-        function downloadTemplate() {
-            let csvContent = '';
-            
-            if (currentCsvType === 'products') {
-                csvContent = 'name,category,currentStock,optimalStock,unitPrice,supplier\n';
-                csvContent += 'サンプル商品,カラー剤,10,20,1200,サンプル仕入先\n';
-                csvContent += 'ロレアル カラー剤 7番,カラー剤,5,15,1300,ロレアル\n';
-            } else {
-                csvContent = 'name,role,staffCode,joinDate\n';
-                csvContent += 'サンプル太郎,スタッフ,ST1001,2025-01-01\n';
-                csvContent += '鈴木花子,スタイリスト,ST1002,2024-06-15\n';
-            }
-
-            // BOM付きで文字化け対策
-            const bom = '\uFEFF';
-            const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            link.setAttribute('href', url);
-            link.setAttribute('download', `${currentCsvType}_template.csv`);
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-
-        function handleFileSelect(event) {
-            const file = event.target.files[0];
-            if (file && file.type === 'text/csv') {
-                parseCSV(file);
-            } else {
-                alert('CSVファイルを選択してください。');
-            }
-        }
-
-        function parseCSV(file) {
-            Papa.parse(file, {
-                header: true,
-                skipEmptyLines: true,
-                dynamicTyping: true,
-                encoding: 'UTF-8',
-                complete: function(results) {
-                    csvData = results.data;
-                    validateAndPreview(csvData);
-                },
-                error: function(error) {
-                    alert('CSVファイルの読み込みに失敗しました: ' + error.message);
-                }
-            });
-        }
-
-        function validateAndPreview(data) {
-            validationErrors = [];
-            const preview = [];
-
-            if (currentCsvType === 'products') {
-                validateProductData(data, preview);
-            } else {
-                validateStaffData(data, preview);
-            }
-
-            displayPreview(preview);
-        }
-
-        function validateProductData(data, preview) {
-            const requiredFields = ['name', 'currentStock', 'optimalStock', 'supplier'];
-            
-            data.forEach((row, index) => {
-                const errors = [];
-                
-                requiredFields.forEach(field => {
-                    if (!row[field] && row[field] !== 0 && row[field] !== '') {
-                        errors.push(`${field}は必須です`);
-                    }
-                });
-
-                if (row.currentStock && (isNaN(row.currentStock) || row.currentStock < 0)) {
-                    errors.push('現在庫は正の数値である必要があります');
-                }
-                if (row.optimalStock && (isNaN(row.optimalStock) || row.optimalStock < 0)) {
-                    errors.push('適正在庫は正の数値である必要があります');
-                }
-                if (row.unitPrice && row.unitPrice !== '' && (isNaN(row.unitPrice) || row.unitPrice < 0)) {
-                    errors.push('単価は正の数値である必要があります');
-                }
-
-                if (errors.length > 0) {
-                    validationErrors.push({
-                        row: index + 1,
-                        errors: errors
-                    });
-                }
-
-                preview.push({
-                    ...row,
-                    hasErrors: errors.length > 0
-                });
-            });
-        }
-
-        function validateStaffData(data, preview) {
-            const requiredFields = ['name'];
-            
-            data.forEach((row, index) => {
-                const errors = [];
-                
-                requiredFields.forEach(field => {
-                    if (!row[field] || row[field] === '') {
-                        errors.push(`${field}は必須です`);
-                    }
-                });
-
-                if (errors.length > 0) {
-                    validationErrors.push({
-                        row: index + 1,
-                        errors: errors
-                    });
-                }
-
-                preview.push({
-                    ...row,
-                    hasErrors: errors.length > 0
-                });
-            });
-        }
-
-        function displayPreview(preview) {
-            const previewDiv = document.getElementById('csvPreview');
-            const errorDiv = document.getElementById('errorSummary');
-            const errorDetails = document.getElementById('errorDetails');
-            const previewHeader = document.getElementById('previewHeader');
-            const previewBody = document.getElementById('previewBody');
-
-            if (!previewDiv) return;
-
-            // エラー表示
-            if (validationErrors.length > 0 && errorDiv && errorDetails) {
-                errorDiv.classList.remove('hidden');
-                errorDetails.innerHTML = '';
-                validationErrors.slice(0, 5).forEach(error => {
-                    const errorItem = document.createElement('div');
-                    errorItem.className = 'error-item';
-                    errorItem.textContent = `行${error.row}: ${error.errors.join(', ')}`;
-                    errorDetails.appendChild(errorItem);
-                });
-                
-                if (validationErrors.length > 5) {
-                    const moreErrors = document.createElement('div');
-                    moreErrors.className = 'error-item';
-                    moreErrors.textContent = `他${validationErrors.length - 5}件のエラー...`;
-                    errorDetails.appendChild(moreErrors);
-                }
-            } else if (errorDiv) {
-                errorDiv.classList.add('hidden');
-            }
-
-            // プレビューテーブル作成
-            let headers = [];
-            if (currentCsvType === 'products') {
-                headers = ['状態', '商品名', '現在庫', '適正在庫', '単価', '仕入れ先'];
-            } else {
-                headers = ['状態', '名前'];
-            }
-
-            if (previewHeader) {
-                previewHeader.innerHTML = '';
-                const headerRow = previewHeader.insertRow();
-                headers.forEach(header => {
-                    const th = document.createElement('th');
-                    th.textContent = header;
-                    headerRow.appendChild(th);
-                });
-            }
-
-            if (previewBody) {
-                previewBody.innerHTML = '';
-                preview.forEach(row => {
-                    const tr = previewBody.insertRow();
-                    if (row.hasErrors) {
-                        tr.style.background = '#fef2f2';
-                    }
-
-                    const statusCell = tr.insertCell();
-                    statusCell.innerHTML = row.hasErrors ? '❌' : '✅';
-
-                    if (currentCsvType === 'products') {
-                        tr.insertCell().textContent = row.name || '';
-                        tr.insertCell().textContent = row.currentStock || '0';
-                        tr.insertCell().textContent = row.optimalStock || '';
-                        tr.insertCell().textContent = row.unitPrice ? `¥${parseInt(row.unitPrice).toLocaleString()}` : '¥0';
-                        tr.insertCell().textContent = row.supplier || '';
-                    } else {
-                        tr.insertCell().textContent = row.name || '';
-                    }
-                });
-            }
-
-            // インポートボタンの状態更新
-            const importBtn = document.getElementById('importBtn');
-            const importBtnText = document.getElementById('importBtnText');
-            if (importBtn && importBtnText) {
-                if (validationErrors.length > 0) {
-                    importBtn.disabled = true;
-                    importBtn.style.background = '#9ca3af';
-                    importBtn.style.cursor = 'not-allowed';
-                    importBtnText.textContent = 'エラーを修正してください';
-                } else {
-                    importBtn.disabled = false;
-                    importBtn.style.background = '';
-                    importBtn.style.cursor = 'pointer';
-                    importBtnText.textContent = `${preview.length}件をインポート`;
-                }
-            }
-
-            previewDiv.classList.remove('hidden');
-        }
-
-        function clearCsvData() {
-            csvData = [];
-            validationErrors = [];
-            const previewDiv = document.getElementById('csvPreview');
-            const csvFile = document.getElementById('csvFile');
-            
-            if (previewDiv) previewDiv.classList.add('hidden');
-            if (csvFile) csvFile.value = '';
-        }
 
         function importCsvData() {
             if (validationErrors.length > 0) {
@@ -4155,28 +3372,12 @@
             }
 
             let message = '';
-            const replaceMode = document.getElementById('csvReplaceMode').checked;
-            
             if (currentCsvType === 'products') {
-                // 差し替えモードの場合、既存データを削除
-                if (replaceMode) {
-                    if (!confirm('既存の商品データを全て削除してCSVデータに置き換えます。\n\nよろしいですか？')) {
-                        return;
-                    }
-                    
-                    // 関連する取引記録も削除
-                    const productIds = products.map(p => p.id);
-                    transactions = transactions.filter(t => !productIds.includes(t.productId));
-                    
-                    // 商品データをクリア
-                    products = [];
-                }
-                
-                const startId = products.length > 0 ? Math.max(...products.map(p => p.id)) + 1 : 1;
+                const maxId = products.length > 0 ? Math.max(...products.map(p => p.id)) : 0;
                 
                 csvData.forEach((row, index) => {
                     const newProduct = {
-                        id: startId + index,
+                        id: maxId + index + 1,
                         name: row.name,
                         category: row.category || 'その他',
                         currentStock: parseInt(row.currentStock) || 0,
@@ -4187,33 +3388,15 @@
                     products.push(newProduct);
                 });
                 
-                // デフォルトは仕入先順でソート
-                products.sort((a, b) => {
-                    if (a.supplier === b.supplier) {
-                        return a.id - b.id;
-                    }
-                    return a.supplier.localeCompare(b.supplier, 'ja');
-                });
-                
-                // ソート選択を仕入先順に設定
-                const sortSelect = document.getElementById('productSortOrder');
-                if (sortSelect) sortSelect.value = 'supplier';
+                // IDで並び替え
+                products.sort((a, b) => a.id - b.id);
                 
                 renderProductsTable();
                 updateProductSelect();
                 updateDashboardStats();
                 updateMonthlyReport();
-                
-                if (replaceMode) {
-                    renderTransactionsTable(); // 取引記録も更新
-                }
-                
-                message = replaceMode 
-                    ? `データを差し替えました。${csvData.length}件の商品を登録しました。`
-                    : `${csvData.length}件の商品を追加しました。`;
-                    
+                message = `${csvData.length}件の商品を登録しました。`;
             } else {
-                // スタッフの処理（既存のまま）
                 const maxId = staff.length > 0 ? Math.max(...staff.map(s => s.id)) : 0;
                 
                 csvData.forEach((row, index) => {
@@ -4373,101 +3556,6 @@
                 pendingDeleteAction();
                 closeConfirmModal();
             }
-        }
-    </script>
-</body>
-</html>
-
-        // パスワードリセット関連の関数
-        function showPasswordResetOptions() {
-            const options = `
-パスワードリセットの方法を選択してください：
-
-1. 秘密の質問で確認（推奨）
-2. マスターパスワードでリセット
-3. Firebaseから直接確認（技術者向け）
-
-選択してください (1-3):`;
-            
-            const choice = prompt(options);
-            
-            switch(choice) {
-                case '1':
-                    resetWithSecretQuestion();
-                    break;
-                case '2':
-                    resetWithMasterPassword();
-                    break;
-                case '3':
-                    showFirebaseInstructions();
-                    break;
-                default:
-                    alert('キャンセルしました。');
-            }
-        }
-
-        // 秘密の質問でリセット
-        function resetWithSecretQuestion() {
-            // ユーザー情報に秘密の質問を追加していない場合の簡易版
-            const shopName = prompt('店舗名を入力してください（ヒント：美容室○○）');
-            
-            if (shopName === users.admin.shopName || shopName === '美容室サンプル') {
-                if (confirm('本人確認が完了しました。\nパスワードを初期値(password)にリセットしますか？')) {
-                    users.admin.password = 'password';
-                    localStorage.setItem('beautyInventoryUsers', JSON.stringify(users));
-                    
-                    if (isCloudMode && db) {
-                        db.collection('settings').doc('users').set({ users: users })
-                            .then(() => {
-                                alert('パスワードをリセットしました。\n新しいパスワード: password\n\nログイン後、必ず変更してください。');
-                            })
-                            .catch((error) => {
-                                alert('クラウド保存エラー: ' + error.message);
-                            });
-                    } else {
-                        alert('パスワードをリセットしました。\n新しいパスワード: password\n\nログイン後、必ず変更してください。');
-                    }
-                }
-            } else {
-                alert('店舗名が正しくありません。');
-            }
-        }
-
-        // マスターパスワードでリセット
-        function resetWithMasterPassword() {
-            const masterPassword = prompt('マスターパスワードを入力してください');
-            
-            // マスターパスワード（必要に応じて変更してください）
-            if (masterPassword === 'beauty2025reset') {
-                if (confirm('adminのパスワードを初期値(password)にリセットしますか？')) {
-                    users.admin.password = 'password';
-                    localStorage.setItem('beautyInventoryUsers', JSON.stringify(users));
-                    
-                    if (isCloudMode && db) {
-                        db.collection('settings').doc('users').set({ users: users })
-                            .then(() => {
-                                alert('パスワードをリセットしました。\n初期パスワード: password');
-                            });
-                    } else {
-                        alert('パスワードをリセットしました。\n初期パスワード: password');
-                    }
-                }
-            } else {
-                alert('マスターパスワードが正しくありません。');
-            }
-        }
-
-        // Firebase確認方法の説明
-        function showFirebaseInstructions() {
-            alert(`Firebaseコンソールから確認する方法：
-
-1. Firebase Console にログイン
-2. Firestore Database を開く
-3. settings → users を確認
-4. 現在のパスワードが表示されます
-
-※この方法は技術的な知識が必要です。
-  不明な場合は他の方法をお試しください。`);
         }
 
         // 初期化
