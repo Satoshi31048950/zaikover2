@@ -1211,6 +1211,11 @@
                 ユーザー名: admin<br>
                 パスワード: password<br>
                 <small>（データはクラウドに同期されます）</small>
+                <div style="margin-top: 15px;">
+                    <a href="#" onclick="showPasswordResetOptions()" style="color: #8b5cf6; text-decoration: none;">
+                        🔑 パスワードを忘れた方
+                    </a>
+                </div>
             </div>
         </div>
     </div>
@@ -1327,6 +1332,9 @@
                 <div class="flex justify-between" style="margin-bottom: 20px;">
                     <h2>商品マスタ管理（クラウド同期）</h2>
                     <div class="flex gap-10">
+                        <button class="btn" onclick="deleteAllProducts()" style="background: #dc2626; color: white;">
+                            🗑️ 全商品削除
+                        </button>
                         <button class="btn btn-secondary" onclick="showCsvModal('products')">
                             📤 CSV一括登録
                         </button>
@@ -1367,16 +1375,23 @@
                 <div class="table-container">
                     <div class="table-header">
                         <h3>商品一覧</h3>
+                        <select id="productSortOrder" onchange="changeProductSort()" class="form-control" style="width: 200px;">
+                            <option value="id">登録順</option>
+                            <option value="supplier">仕入先順</option>
+                            <option value="category">カテゴリ順</option>
+                            <option value="name">商品名順</option>
+                            <option value="stock">在庫数順</option>
+                        </select>
                     </div>
                     <table>
                         <thead>
                             <tr>
                                 <th>商品名</th>
+                                <th>仕入先</th>
                                 <th>カテゴリ</th>
                                 <th>現在庫</th>
                                 <th>適正在庫</th>
                                 <th>単価</th>
-                                <th>仕入先</th>
                                 <th>操作</th>
                             </tr>
                         </thead>
@@ -1660,6 +1675,13 @@
                     <button class="btn btn-secondary" onclick="downloadTemplate()">
                         📥 CSVテンプレートダウンロード
                     </button>
+                    <div style="margin-top: 10px; padding: 15px; background: #fef3c7; border-radius: 8px;">
+                        <strong>⚠️ CSV差し替えモード</strong><br>
+                        <label style="margin-top: 10px; display: flex; align-items: center; gap: 10px;">
+                            <input type="checkbox" id="csvReplaceMode" style="width: 20px; height: 20px;">
+                            <span>既存データを全て削除してCSVデータに置き換える</span>
+                        </label>
+                    </div>
                     <p style="margin-top: 10px; color: #6c757d; font-size: 0.9rem;" id="templateInfo">
                         商品マスタ必須項目: name(商品名), currentStock(現在庫), optimalStock(適正在庫), supplier(仕入れ先) ※unitPrice(単価)は空白可
                     </p>
@@ -1797,27 +1819,23 @@
             <div class="ocr-items">
                 <div class="ocr-item">
                     <span class="checkbox">□</span>
-                    カラー剤6番 _______ 本
+                    キャラデコ _______ 本
                 </div>
                 <div class="ocr-item">
                     <span class="checkbox">□</span>
-                    カラー剤8番 _______ 本
+                    OX _______ 本
                 </div>
                 <div class="ocr-item">
                     <span class="checkbox">□</span>
-                    ミルボン シャンプー _______ 本
+                    ミルフィ _______ 本
                 </div>
                 <div class="ocr-item">
                     <span class="checkbox">□</span>
-                    トリートメント _______ 本
+                    キラテラ _______ 本
                 </div>
                 <div class="ocr-item">
                     <span class="checkbox">□</span>
-                    ウエラ パーマ液 _______ 本
-                </div>
-                <div class="ocr-item">
-                    <span class="checkbox">□</span>
-                    N. オイル _______ 本
+                    シェルパホームケア _______ 本
                 </div>
                 <div class="ocr-item">
                     <span class="checkbox">□</span>
@@ -2041,6 +2059,10 @@
                 users = JSON.parse(savedUsers);
             }
             
+            // 初期データの保存（Firebaseにデータがない場合のみ）
+            let needsInitialSave = false;
+            
+            // 各データをレンダリング
             renderProductsTable();
             renderStaffTable();
             renderTransactionsTable();
@@ -2049,6 +2071,15 @@
             updateDashboardStats();
             updateMonthlyReport();
             updateDataStats();
+            
+            // クラウドモードで初回の場合、初期データを保存
+            if (isCloudMode && products.length > 0) {
+                // 少し遅延させて初期データを保存
+                setTimeout(() => {
+                    console.log('初期データをクラウドに保存します');
+                    saveToCloud();
+                }, 2000);
+            }
         }
 
         // クラウドにデータ保存
@@ -2190,8 +2221,21 @@
                     const data = usersDoc.data();
                     if (data.users) {
                         users = data.users;
+                        // ローカルストレージにも保存
+                        localStorage.setItem('beautyInventoryUsers', JSON.stringify(users));
                     }
                 }
+                
+                // データが空の場合は初期データを保持
+                if (products.length === 0) {
+                    console.log('商品データが空のため、初期データを使用します');
+                    // 初期データは保持
+                }
+                
+                // IDでソート
+                products.sort((a, b) => a.id - b.id);
+                staff.sort((a, b) => a.id - b.id);
+                transactions.sort((a, b) => b.id - a.id); // 新しい順
                 
                 // UI更新
                 renderProductsTable();
@@ -2453,6 +2497,75 @@
             });
         }
 
+        // 商品の並び替え
+        function changeProductSort() {
+            const sortOrder = document.getElementById('productSortOrder').value;
+            
+            switch(sortOrder) {
+                case 'supplier':
+                    products.sort((a, b) => {
+                        // 仕入先でソート（同じ仕入先内ではID順）
+                        if (a.supplier === b.supplier) {
+                            return a.id - b.id;
+                        }
+                        return a.supplier.localeCompare(b.supplier, 'ja');
+                    });
+                    break;
+                case 'category':
+                    products.sort((a, b) => {
+                        if (a.category === b.category) {
+                            return a.id - b.id;
+                        }
+                        return a.category.localeCompare(b.category, 'ja');
+                    });
+                    break;
+                case 'name':
+                    products.sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+                    break;
+                case 'stock':
+                    products.sort((a, b) => a.currentStock - b.currentStock);
+                    break;
+                case 'id':
+                default:
+                    products.sort((a, b) => a.id - b.id);
+                    break;
+            }
+            
+            renderProductsTable();
+        }
+
+        // 全商品削除
+        function deleteAllProducts() {
+            const confirmMessage = `⚠️ 警告: 全商品を削除しますか？\n\n現在の商品数: ${products.length}件\n\nこの操作は元に戻せません！`;
+            
+            if (confirm(confirmMessage)) {
+                if (confirm('本当に全ての商品を削除してもよろしいですか？\n\n最終確認です。')) {
+                    // 関連する取引記録も削除
+                    const productIds = products.map(p => p.id);
+                    transactions = transactions.filter(t => !productIds.includes(t.productId));
+                    
+                    // 商品を全削除
+                    products = [];
+                    
+                    // UI更新
+                    renderProductsTable();
+                    renderTransactionsTable();
+                    updateProductSelect();
+                    updateDashboardStats();
+                    updateMonthlyReport();
+                    
+                    // 自動保存
+                    if (isCloudMode) {
+                        saveToCloud();
+                    } else {
+                        saveAllData();
+                    }
+                    
+                    alert('全商品を削除しました。');
+                }
+            }
+        }
+
         // 商品管理関連の関数（元の機能をすべて含む）
         function showAddProductForm() {
             const form = document.getElementById('addProductForm');
@@ -2530,11 +2643,11 @@
                     // 編集モード
                     row.innerHTML = `
                         <td><input type="text" class="form-control edit-name" value="${product.name}" style="width: 100%;"></td>
+                        <td><input type="text" class="form-control edit-supplier" value="${product.supplier}" style="width: 100%;"></td>
                         <td>${product.category}</td>
                         <td><input type="number" class="form-control edit-current-stock" value="${product.currentStock}" style="width: 80px;"> 本</td>
                         <td><input type="number" class="form-control edit-optimal-stock" value="${product.optimalStock}" style="width: 80px;"> 本</td>
                         <td><input type="number" class="form-control edit-unit-price" value="${product.unitPrice}" style="width: 100px;" placeholder="0"></td>
-                        <td><input type="text" class="form-control edit-supplier" value="${product.supplier}" style="width: 100%;"></td>
                         <td>
                             <button class="btn" onclick="saveProductEdit(${product.id})" style="background: #10b981; color: white; padding: 6px 12px; font-size: 0.8rem; margin-right: 5px;">保存</button>
                             <button class="btn" onclick="cancelProductEdit()" style="background: #6c757d; color: white; padding: 6px 12px; font-size: 0.8rem;">取消</button>
@@ -2544,11 +2657,11 @@
                     // 表示モード
                     row.innerHTML = `
                         <td>${product.name}</td>
+                        <td><strong>${product.supplier}</strong></td>
                         <td>${product.category}</td>
                         <td>${product.currentStock} 本</td>
                         <td>${product.optimalStock} 本</td>
                         <td>¥${product.unitPrice.toLocaleString()}</td>
-                        <td>${product.supplier}</td>
                         <td>
                             <button class="btn" onclick="editProduct(${product.id})" style="background: #3b82f6; color: white; padding: 6px 12px; font-size: 0.8rem; margin-right: 5px;">編集</button>
                             <button class="btn" onclick="deleteProduct(${product.id})" style="background: #dc2626; color: white; padding: 6px 12px; font-size: 0.8rem;">削除</button>
@@ -3350,12 +3463,28 @@
             }
 
             let message = '';
+            const replaceMode = document.getElementById('csvReplaceMode').checked;
+            
             if (currentCsvType === 'products') {
-                const maxId = products.length > 0 ? Math.max(...products.map(p => p.id)) : 0;
+                // 差し替えモードの場合、既存データを削除
+                if (replaceMode) {
+                    if (!confirm('既存の商品データを全て削除してCSVデータに置き換えます。\n\nよろしいですか？')) {
+                        return;
+                    }
+                    
+                    // 関連する取引記録も削除
+                    const productIds = products.map(p => p.id);
+                    transactions = transactions.filter(t => !productIds.includes(t.productId));
+                    
+                    // 商品データをクリア
+                    products = [];
+                }
+                
+                const startId = products.length > 0 ? Math.max(...products.map(p => p.id)) + 1 : 1;
                 
                 csvData.forEach((row, index) => {
                     const newProduct = {
-                        id: maxId + index + 1,
+                        id: startId + index,
                         name: row.name,
                         category: row.category || 'その他',
                         currentStock: parseInt(row.currentStock) || 0,
@@ -3366,15 +3495,33 @@
                     products.push(newProduct);
                 });
                 
-                // IDで並び替え
-                products.sort((a, b) => a.id - b.id);
+                // デフォルトは仕入先順でソート
+                products.sort((a, b) => {
+                    if (a.supplier === b.supplier) {
+                        return a.id - b.id;
+                    }
+                    return a.supplier.localeCompare(b.supplier, 'ja');
+                });
+                
+                // ソート選択を仕入先順に設定
+                const sortSelect = document.getElementById('productSortOrder');
+                if (sortSelect) sortSelect.value = 'supplier';
                 
                 renderProductsTable();
                 updateProductSelect();
                 updateDashboardStats();
                 updateMonthlyReport();
-                message = `${csvData.length}件の商品を登録しました。`;
+                
+                if (replaceMode) {
+                    renderTransactionsTable(); // 取引記録も更新
+                }
+                
+                message = replaceMode 
+                    ? `データを差し替えました。${csvData.length}件の商品を登録しました。`
+                    : `${csvData.length}件の商品を追加しました。`;
+                    
             } else {
+                // スタッフの処理（既存のまま）
                 const maxId = staff.length > 0 ? Math.max(...staff.map(s => s.id)) : 0;
                 
                 csvData.forEach((row, index) => {
@@ -3536,6 +3683,98 @@
             }
         }
 
+        // パスワードリセット関連の関数
+        function showPasswordResetOptions() {
+            const options = `
+パスワードリセットの方法を選択してください：
+
+1. 秘密の質問で確認（推奨）
+2. マスターパスワードでリセット
+3. Firebaseから直接確認（技術者向け）
+
+選択してください (1-3):`;
+            
+            const choice = prompt(options);
+            
+            switch(choice) {
+                case '1':
+                    resetWithSecretQuestion();
+                    break;
+                case '2':
+                    resetWithMasterPassword();
+                    break;
+                case '3':
+                    showFirebaseInstructions();
+                    break;
+                default:
+                    alert('キャンセルしました。');
+            }
+        }
+
+        // 秘密の質問でリセット
+        function resetWithSecretQuestion() {
+            // ユーザー情報に秘密の質問を追加していない場合の簡易版
+            const shopName = prompt('店舗名を入力してください（ヒント：美容室○○）');
+            
+            if (shopName === users.admin.shopName || shopName === '美容室サンプル') {
+                if (confirm('本人確認が完了しました。\nパスワードを初期値(password)にリセットしますか？')) {
+                    users.admin.password = 'password';
+                    localStorage.setItem('beautyInventoryUsers', JSON.stringify(users));
+                    
+                    if (isCloudMode && db) {
+                        db.collection('settings').doc('users').set({ users: users })
+                            .then(() => {
+                                alert('パスワードをリセットしました。\n新しいパスワード: password\n\nログイン後、必ず変更してください。');
+                            })
+                            .catch((error) => {
+                                alert('クラウド保存エラー: ' + error.message);
+                            });
+                    } else {
+                        alert('パスワードをリセットしました。\n新しいパスワード: password\n\nログイン後、必ず変更してください。');
+                    }
+                }
+            } else {
+                alert('店舗名が正しくありません。');
+            }
+        }
+
+        // マスターパスワードでリセット
+        function resetWithMasterPassword() {
+            const masterPassword = prompt('マスターパスワードを入力してください');
+            
+            // マスターパスワード（必要に応じて変更してください）
+            if (masterPassword === 'beauty2025reset') {
+                if (confirm('adminのパスワードを初期値(password)にリセットしますか？')) {
+                    users.admin.password = 'password';
+                    localStorage.setItem('beautyInventoryUsers', JSON.stringify(users));
+                    
+                    if (isCloudMode && db) {
+                        db.collection('settings').doc('users').set({ users: users })
+                            .then(() => {
+                                alert('パスワードをリセットしました。\n初期パスワード: password');
+                            });
+                    } else {
+                        alert('パスワードをリセットしました。\n初期パスワード: password');
+                    }
+                }
+            } else {
+                alert('マスターパスワードが正しくありません。');
+            }
+        }
+
+        // Firebase確認方法の説明
+        function showFirebaseInstructions() {
+            alert(`Firebaseコンソールから確認する方法：
+
+1. Firebase Console にログイン
+2. Firestore Database を開く
+3. settings → users を確認
+4. 現在のパスワードが表示されます
+
+※この方法は技術的な知識が必要です。
+  不明な場合は他の方法をお試しください。`);
+        }
+
         // 初期化
         window.onload = function() {
             // 保存済みのFirebase設定があるかチェック
@@ -3654,13 +3893,16 @@
             const records = [];
             const lines = text.split('\n');
             
-            // 各商品のパターンを定義
+            // 各商品のパターンを定義（新しい商品に対応）
             const productPatterns = [
+                { pattern: /キャラデコ.*?(\d+)/, name: 'キャラデコ' },
+                { pattern: /OX.*?(\d+)/, name: 'OX' },
+                { pattern: /ミルフィ.*?(\d+)/, name: 'ミルフィ' },
+                { pattern: /キラテラ.*?(\d+)/, name: 'キラテラ' },
+                { pattern: /シェルパ.*?ホームケア.*?(\d+)/, name: 'シェルパホームケア' },
+                // 既存商品も残す
                 { pattern: /カラー剤.*?6番.*?(\d+)/, name: 'ロレアル カラー剤 6番' },
-                { pattern: /カラー剤.*?8番.*?(\d+)/, name: 'ロレアル カラー剤 8番' },
                 { pattern: /ミルボン.*?シャンプー.*?(\d+)/, name: 'ミルボン シャンプー' },
-                { pattern: /トリートメント.*?(\d+)/, name: 'トリートメント' },
-                { pattern: /ウエラ.*?パーマ液.*?(\d+)/, name: 'ウエラ パーマ液' },
                 { pattern: /N\.?\s*オイル.*?(\d+)/, name: 'N. オイル' }
             ];
             
@@ -3672,13 +3914,21 @@
                         const quantity = parseInt(match[1]);
                         if (quantity > 0) {
                             // 実際の商品IDを探す
-                            const product = products.find(p => p.name === name);
+                            const product = products.find(p => p.name === name || p.name.includes(name.replace(/\s/g, '')));
                             if (product) {
                                 records.push({
                                     productId: product.id,
                                     productName: product.name,
                                     quantity: quantity,
                                     recognized: true
+                                });
+                            } else {
+                                // 商品が見つからない場合は名前だけ保持
+                                records.push({
+                                    productId: null,
+                                    productName: name,
+                                    quantity: quantity,
+                                    recognized: false
                                 });
                             }
                         }
@@ -3855,8 +4105,10 @@
         }
 
         function printOCRTemplate() {
-            const printWindow = window.open('', '_blank');
-            const template = document.getElementById('ocrPrintTemplate').innerHTML;
+            const printContent = document.getElementById('ocrPrintTemplate').innerHTML;
+            
+            // 新しいウィンドウで印刷
+            const printWindow = window.open('', 'PRINT', 'height=600,width=800');
             
             printWindow.document.write(`
                 <!DOCTYPE html>
@@ -3866,20 +4118,40 @@
                     <style>
                         @page { margin: 20mm; }
                         body { margin: 0; }
-                        ${document.querySelector('style').textContent}
+                        .ocr-template {
+                            background: white;
+                            padding: 30px;
+                            font-family: 'メイリオ', 'Meiryo', sans-serif;
+                            font-size: 16pt;
+                            line-height: 2.5;
+                            color: black;
+                        }
+                        .ocr-template h2 {
+                            text-align: center;
+                            margin-bottom: 20px;
+                            font-size: 24pt;
+                        }
+                        .ocr-template .ocr-item {
+                            margin: 15px 0;
+                            font-size: 18pt;
+                        }
+                        .ocr-template .checkbox {
+                            display: inline-block;
+                            width: 25px;
+                            height: 25px;
+                            border: 3px solid black;
+                            margin-right: 15px;
+                            vertical-align: middle;
+                        }
                     </style>
                 </head>
-                <body>
-                    ${template}
+                <body onload="window.print(); window.close();">
+                    ${printContent}
                 </body>
                 </html>
             `);
             
             printWindow.document.close();
-            printWindow.onload = function() {
-                printWindow.print();
-                printWindow.close();
-            };
         }
     </script>
 </body>
